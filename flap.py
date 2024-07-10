@@ -22,6 +22,8 @@ GREEN = (0,255,0)
 BLACK = (0,0,0)
 WHITE = (255,255,255)
 
+collided = False
+
 class Pipe:
     def __init__(self,x):
         self.x = x
@@ -42,7 +44,8 @@ class Pipe:
         pg.draw.rect(DISPLAY, WHITE, (self.x, self.bottomY, self.width, self.bottomHeight))
 
     def move(self):
-        self.x -= 5;
+        if not collided:
+            self.x -= 5;
 
 class Bird:
     def __init__(self):
@@ -54,12 +57,12 @@ class Bird:
         self.start_time = (time.time())
         self.birdVel = 4
 
+
     def draw(self):
         pg.draw.circle(DISPLAY, self.color, (self.x,self.y), self.radius)
-        self.jump()
-
-    def move(self):
-        pass
+        print(collided)
+        if not collided:
+            self.jump()
 
     def jump(self):
         self.keys = pg.key.get_pressed()
@@ -75,12 +78,6 @@ class Collision:
     def __init__(self, Bird, Pipe):
         self.bird = Bird;
         self.pipe = Pipe;
-
-        collided = (self.checkCollison())
-        if (collided):
-            self.bird.color = RED
-            self.bird.collided = True
-
 
     def nearest(self):
         # nearest y point
@@ -119,6 +116,7 @@ def print_stuff(Font_Size, text, color, x, y):
 
 # Game loop
 def main():
+    global collided
     pipes = [Pipe(DISPLAY_WIDTH)]
     running = True
     score = 0
@@ -130,7 +128,10 @@ def main():
         DISPLAY.fill(BLACK)
 
         for pipe in pipes:
-            collided = Collision(birdie, pipe)
+            collision = Collision(birdie, pipe)
+            if collision.checkCollison():
+                collided = True
+                birdie.color = RED
             if pipe.x < birdie.x and pipe.passed == False:
                 pipe.passed = True
                 score +=1
