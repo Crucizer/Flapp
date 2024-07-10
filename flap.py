@@ -24,6 +24,95 @@ WHITE = (255,255,255)
 
 collided = False
 
+class gameEnv:
+    def __init__(self):
+        self.reset()
+        # pass
+
+    def reset(self):
+        self.bird = Bird()
+        self.pipes = [Pipe(DISPLAY_WIDTH)]
+        self.score = 0
+        self.game_over = False
+
+    def step(self, action):
+        reward = 0
+
+        # update game state
+        self.bird.update(action)
+
+        for pipe in self.pipes:
+            pipe.draw()
+            pipe.move()
+
+            collission = Collision(self.bird, pipe)
+            if collission.checkCollison():
+                self.game_over = True
+                self.bird.color = RED
+
+            if pipe.x < self.bird.x and pipe.passed == False:
+                pipe.passed = True
+                self.score += 1
+
+        if self.game_over:
+            reward = -1
+        else:
+            reward = 0.1 # small reward for just surviving
+
+        # updating score
+        for pipe in self.pipes:
+            if pipe.x < self.bird.x and not pipe.passed:
+                pipe.passed = True
+                self.score +=1
+                reward = 1 # Large reward for passing a pipe
+
+        # removing pipe if out of screen
+        self.pipes = [pipe for pipe in self.pipes if pipe.x > -pipe.width]
+
+        # adding new pipe
+        if self.pipes[-1].x < DISPLAY_WIDTH - 500:
+            self.pipes.append(Pipe(DISPLAY_WIDTH))
+
+    def render(self):
+        # DISPLAY.fill(BLACK)
+        print_stuff(36,str(self.score), GREEN, DISPLAY_WIDTH -50, DISPLAY_HEIGHT-50)
+
+        # frame rate
+        clock.tick(FPS)
+
+class NeuralNetwork:
+    def __init__(self, input_size, hidden_size, output_size):
+        # initializing random weights
+        self.weights_input_hidden = np.random.rand(input_size, hidden_size)
+        self.weights_hidden_output = np.random.rand(hidden_size, output_size)
+        self.learning_rate = 0.01
+
+    # activation function
+    def sigmoid(self, x):
+        return 1/(1+np.exp(-x))
+
+    def sigmoid_derivative(self,x):
+        return x*(1-x)
+
+    def forward_prop(self, inputs):
+        self.hidden = self.sigmoid(np.dot(inputs, self.weights_input_hidden))
+        self.output = self.sigmoid(np.dot(self.hidden, self.weights_hidden_output))
+
+    # backpropagation
+    def train(self, inputs, expected_output):
+        output = self.forward_prop(inputs)
+        error = expected_output - output
+        d_output = error * self.sigmoid_derivative(output)
+        error_hidden = d_output.dot(self.weights_hidden_output.T)
+        d_hidden = error_hidden * self.sigmoid_derivative(self.hidden)
+
+        # updating the weights
+        self.weights_hidden_output += self.hidden.T.dot(d_output) * self.learning_rate
+        self.weights_input_hidden += np.array(inputs).T.dot(d_hidden) * self.learning_rate
+
+
+# Input Layer -> Bird's Y coordinate, Bird's Velocity, Horizontal distance to the Pipe, vertical distance to the bottom of the top pipe, vertical distance to the top of the bottom pipe
+
 class Pipe:
     def __init__(self,x):
         self.x = x
@@ -52,27 +141,25 @@ class Bird:
         self.x = 100 # fixed
         self.y= DISPLAY_HEIGHT//2
         self.radius = 15
-        self.action = 0
         self.color = WHITE
         self.start_time = (time.time())
-        self.birdVel = 4
-
+        self.vel = 4
+        self.jumpVel = -12
 
     def draw(self):
         pg.draw.circle(DISPLAY, self.color, (self.x,self.y), self.radius)
-        print(collided)
-        if not collided:
-            self.jump()
+        # if not collided:
+        #     self.jump()
 
-    def jump(self):
-        self.keys = pg.key.get_pressed()
-        if self.keys[pg.K_SPACE]:
-            self.y -= self.birdVel*2
+    def update(self, action):
+        self.draw()
+        self.y += self.vel
+        if action == 1: #jump
+            self.y += self.jumpVel
             self.start_time = time.time()
         else:
-            # add gravity
-            t = time.time()- self.start_time
-            self.y += 1+ self.birdVel*t + 0.5*t**2
+            t = round(time.time() - self.start_time,2)
+            self.y += self.vel*t + 0.5*t**2;
 
 class Collision:
     def __init__(self, Bird, Pipe):
@@ -109,56 +196,29 @@ class Collision:
             return False
 
 def print_stuff(Font_Size, text, color, x, y):
-    font = pg.font.SysFont("Arial", 36)
-    text = text
+    font = pg.font.SysFont("Arial", Font_Size)
     text_render = font.render(text, 1, color)
     DISPLAY.blit(text_render, (x, y))
 
 # Game loop
 def main():
-    global collided
-    pipes = [Pipe(DISPLAY_WIDTH)]
     running = True
-    score = 0
+    game = gameEnv()
     while running:
         for event in pg.event.get():
             if event.type == pg.QUIT:
                 running = False
 
+        keys = pg.key.get_pressed()
+        action = 1 if keys[pg.K_SPACE] else 0
+
         DISPLAY.fill(BLACK)
+        game.step(action)
+        game.render()
 
-        for pipe in pipes:
-            collision = Collision(birdie, pipe)
-            if collision.checkCollison():
-                collided = True
-                birdie.color = RED
-            if pipe.x < birdie.x and pipe.passed == False:
-                pipe.passed = True
-                score +=1
-            pipe.draw()
-            pipe.move()
-
-        print_stuff(10, str(score), GREEN, DISPLAY_WIDTH - 50, DISPLAY_HEIGHT - 50)
-
-        # do stuff
-        birdie.draw()
-
-        # remove out of screen pipes
-        pipes = [pipe for pipe in pipes if pipe.x > -pipe.width]
-
-        # add pipes
-        if pipes[-1].x < DISPLAY_WIDTH - 500:
-                    pipes.append(Pipe(DISPLAY_WIDTH))
-
-        # frame rate
-        clock.tick(FPS)
-
-        #update the display
         pg.display.flip()
 
     pg.quit()
     sys.exit()
 
-birdie = Bird()
-pipe = Pipe(DISPLAY_WIDTH)
 main()
