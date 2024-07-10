@@ -32,6 +32,8 @@ class Pipe:
         self.bottomHeight = DISPLAY_HEIGHT - self.topHeight;
         self.bottomY = self.topHeight + self.pipeGap
 
+        self.passed = False
+
 
     def draw(self):
         # top pipe
@@ -50,10 +52,10 @@ class Bird:
         self.action = 0
         self.color = WHITE
         self.start_time = (time.time())
+        self.birdVel = 4
 
     def draw(self):
         pg.draw.circle(DISPLAY, self.color, (self.x,self.y), self.radius)
-        # pg.draw.rect(DISPLAY, GREEN, (100-15, self.y, 15, 15))
         self.jump()
 
     def move(self):
@@ -62,12 +64,12 @@ class Bird:
     def jump(self):
         self.keys = pg.key.get_pressed()
         if self.keys[pg.K_SPACE]:
-            self.y -= 8
+            self.y -= self.birdVel*2
             self.start_time = time.time()
         else:
             # add gravity
             t = time.time()- self.start_time
-            self.y += 1+ 4*t + 0.5*t**2
+            self.y += 1+ self.birdVel*t + 0.5*t**2
 
 class Collision:
     def __init__(self, Bird, Pipe):
@@ -77,6 +79,7 @@ class Collision:
         collided = (self.checkCollison())
         if (collided):
             self.bird.color = RED
+            self.bird.collided = True
 
 
     def nearest(self):
@@ -108,16 +111,17 @@ class Collision:
         else:
             return False
 
-
-
-
-
-
+def print_stuff(Font_Size, text, color, x, y):
+    font = pg.font.SysFont("Arial", 36)
+    text = text
+    text_render = font.render(text, 1, color)
+    DISPLAY.blit(text_render, (x, y))
 
 # Game loop
 def main():
     pipes = [Pipe(DISPLAY_WIDTH)]
     running = True
+    score = 0
     while running:
         for event in pg.event.get():
             if event.type == pg.QUIT:
@@ -125,18 +129,22 @@ def main():
 
         DISPLAY.fill(BLACK)
 
-
-
         for pipe in pipes:
             collided = Collision(birdie, pipe)
+            if pipe.x < birdie.x and pipe.passed == False:
+                pipe.passed = True
+                score +=1
             pipe.draw()
             pipe.move()
+
+        print_stuff(10, str(score), GREEN, DISPLAY_WIDTH - 50, DISPLAY_HEIGHT - 50)
 
         # do stuff
         birdie.draw()
 
         # remove out of screen pipes
         pipes = [pipe for pipe in pipes if pipe.x > -pipe.width]
+
         # add pipes
         if pipes[-1].x < DISPLAY_WIDTH - 500:
                     pipes.append(Pipe(DISPLAY_WIDTH))
