@@ -34,8 +34,10 @@ class gameEnv:
         self.pipes = [Pipe(DISPLAY_WIDTH)]
         self.score = 0
         self.game_over = False
+        collided = False
 
     def step(self, action):
+        global collided
         reward = 0
 
         # update game state
@@ -48,6 +50,7 @@ class gameEnv:
             collission = Collision(self.bird, pipe)
             if collission.checkCollison():
                 self.game_over = True
+                collided = True
                 self.bird.color = RED
 
             if pipe.x < self.bird.x and pipe.passed == False:
@@ -74,11 +77,21 @@ class gameEnv:
             self.pipes.append(Pipe(DISPLAY_WIDTH))
 
     def render(self):
-        # DISPLAY.fill(BLACK)
         print_stuff(36,str(self.score), GREEN, DISPLAY_WIDTH -50, DISPLAY_HEIGHT-50)
 
         # frame rate
         clock.tick(FPS)
+        pg.display.flip()
+
+    def get_state(self):
+        if self.pipes[0].x > self.bird.x:
+            pipe = self.pipes[0]
+        else:
+            pipe = self.pipes[1]
+
+        state = [self.bird.y/DISPLAY_HEIGHT, self.bird.vel/10, (pipe.x - self.bird.x) / DISPLAY_WIDTH, (pipe.topHeight - self.bird.y)/ DISPLAY_HEIGHT, (pipe.bottomY - self.bird.y)/ DISPLAY_HEIGHT]
+
+        return np.array(state)
 
 class NeuralNetwork:
     def __init__(self, input_size, hidden_size, output_size):
@@ -148,11 +161,13 @@ class Bird:
 
     def draw(self):
         pg.draw.circle(DISPLAY, self.color, (self.x,self.y), self.radius)
-        # if not collided:
-        #     self.jump()
 
     def update(self, action):
         self.draw()
+        if not collided:
+            self.move(action)
+
+    def move(self,action):
         self.y += self.vel
         if action == 1: #jump
             self.y += self.jumpVel
@@ -215,8 +230,6 @@ def main():
         DISPLAY.fill(BLACK)
         game.step(action)
         game.render()
-
-        pg.display.flip()
 
     pg.quit()
     sys.exit()
