@@ -24,34 +24,6 @@ WHITE = (255,255,255)
 
 collided = False
 
-class forEachBird:
-    def __init__(self, bird, pipes):
-        self.bird = bird
-        self.pipes = pipes
-        self.dead = False
-        self.score = 0
-
-    def step(self, action):
-        if not self.dead:
-            self.bird.update(action)
-
-        # Check if collision
-        for pipe in self.pipes:
-            collision = Collision(self.bird, pipe)
-
-            if collision.checkCollison():
-                self.dead = True
-                self.bird.color = RED
-
-            if pipe.x < self.bird.x and not pipe.passed:
-                pipe.passed = True # all birds have x axis
-                self.score +=1 
-
-# move and draw the pipes and remove the pipes
-# reset function
-# extinct function
-# constructor function
-
 class Population:
     def __init__(self, size):
         self.birds = []
@@ -61,7 +33,7 @@ class Population:
         self.pipes = [Pipe(DISPLAY_WIDTH)]
 
         for _ in range(self.size):
-            self.birds.append(forEachBird(Bird(), self.pipes))
+            self.birds.append(Bird())
 
         self.work()
 
@@ -70,12 +42,23 @@ class Population:
             pipe.draw()
             pipe.move()
 
-        # for each bird
+        for bird in self.birds:
+            # updating bird
+            if not bird.dead:
+                if time.time() - self.start_time > 0.25:
+                    self.action = random.randint(0,1)
+                    bird.update(self.action)
 
-        for i in range(self.size):
-            if time.time() - self.start_time > 0.25:
-                self.action = random.randint(0,1)
-            self.birds[i].step(self.action)
+            # checking collision
+            for pipe in self.pipes:
+                collision = Collision(bird, pipe)
+                if collision.checkCollison():
+                    bird.dead = True
+
+                if pipe.x < bird.x and not pipe.passed:
+                    pipe.passed = True # all birds have same x axis
+                    bird.score += 1
+            
 
         # removing pipes
         self.pipes = [pipe for pipe in self.pipes if pipe.x > -pipe.width]
@@ -138,11 +121,14 @@ class Bird:
         self.vel = 4
         self.jumpVel = -12
 
+        self.score = 0 
+        self.dead = False
+
     def draw(self):
         pg.draw.circle(DISPLAY, self.color, (self.x,self.y), self.radius)
 
     def update(self, action):
-        if not collided: # bird disappears after colliding
+        if not self.dead: # bird disappears after colliding
             self.draw()
             self.move(action)
 
