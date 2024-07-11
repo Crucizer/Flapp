@@ -3,6 +3,7 @@ import numpy as np
 import sys
 import random
 import time
+from NeuralNetwork import NeuralNetwork
 
 #initializing pygame
 pg.init()
@@ -46,7 +47,8 @@ class Population:
             # updating bird
             if not bird.dead:
                 if time.time() - self.start_time > 0.25:
-                    self.action = random.randint(0,1)
+                    # self.action = random.randint(0,1)
+                    self.action = bird.brain.feed_forward(bird.vision)
                     bird.update(self.action)
 
             # checking collision
@@ -66,8 +68,6 @@ class Population:
         # adding new pipes
         if self.pipes[-1].x < DISPLAY_HEIGHT - 500:
             self.pipes.append(Pipe(DISPLAY_WIDTH))
-
-
 
     def extinct(self):
         died = True
@@ -123,6 +123,12 @@ class Bird:
 
         self.score = 0 
         self.dead = False
+
+        # for AI stuff
+        self.input_values = 3 
+        self.brain = NeuralNetwork(self.input_values)
+        self.brain.generate_net()
+        self.vision = [0.5,1,0.5] # random hardcoded value for now
 
     def draw(self):
         pg.draw.circle(DISPLAY, self.color, (self.x,self.y), self.radius)
