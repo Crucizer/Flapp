@@ -24,79 +24,84 @@ WHITE = (255,255,255)
 
 collided = False
 
-class gameEnv:
-    def __init__(self, bird):
+class forEachBird:
+    def __init__(self, bird, pipes):
         self.bird = bird
-        self.reset()
-        # pass
-
-    def reset(self):
-        self.bird = Bird()
-        self.pipes = [Pipe(DISPLAY_WIDTH)]
+        self.pipes = pipes
+        self.dead = False
         self.score = 0
-        self.game_over = False
-        collided = False
 
     def step(self, action):
-        global collided
-        reward = 0
+        if not self.dead:
+            self.bird.update(action)
 
-        # update game state
-        self.bird.update(action)
+        # Check if collision
+        for pipe in self.pipes:
+            collision = Collision(self.bird, pipe)
 
+            if collision.checkCollison():
+                self.dead = True
+                self.bird.color = RED
+
+            if pipe.x < self.bird.x and not pipe.passed:
+                pipe.passed = True # all birds have x axis
+                self.score +=1 
+
+# move and draw the pipes and remove the pipes
+# reset function
+# extinct function
+# constructor function
+
+class Population:
+    def __init__(self, size):
+        self.birds = []
+        self.start_time = time.time()
+        self.action = 0
+        self.size = size
+        self.pipes = [Pipe(DISPLAY_WIDTH)]
+
+        for _ in range(self.size):
+            self.birds.append(forEachBird(Bird(), self.pipes))
+
+        self.work()
+
+    def work(self):
         for pipe in self.pipes:
             pipe.draw()
             pipe.move()
 
-            # checking collision
-            collission = Collision(self.bird, pipe)
-            if collission.checkCollison():
-                self.game_over = True
-                collided = True
-                self.bird.color = RED
+        # for each bird
 
-            # Updating score
-            if pipe.x < self.bird.x and pipe.passed == False:
-                pipe.passed = True
-                self.score += 1
+        for i in range(self.size):
+            if time.time() - self.start_time > 0.25:
+                self.action = random.randint(0,1)
+            self.birds[i].step(self.action)
 
-        if self.game_over:
-            reward = -1
-        else:
-            reward = 0.1 # small reward for just surviving
-
-        # updating score
-        for pipe in self.pipes:
-            if pipe.x < self.bird.x and not pipe.passed:
-                pipe.passed = True
-                self.score +=1
-                reward = 1 # Large reward for passing a pipe
-
-        # removing pipe if out of screen
+        # removing pipes
         self.pipes = [pipe for pipe in self.pipes if pipe.x > -pipe.width]
 
-        # adding new pipe
-        if self.pipes[-1].x < DISPLAY_WIDTH - 500:
+        # adding new pipes
+        if self.pipes[-1].x < DISPLAY_HEIGHT - 500:
             self.pipes.append(Pipe(DISPLAY_WIDTH))
 
-        return reward, self.get_state(), self.game_over
 
+
+    def extinct(self):
+        died = True
+        for i in range(self.size):
+            if not self.birds[i].dead:
+                died = False
+                break
+        
+        return died
+    
     def render(self):
-        print_stuff(36,str(self.score), GREEN, DISPLAY_WIDTH -50, DISPLAY_HEIGHT-50)
+        # print score maybe
 
         # frame rate
         clock.tick(FPS)
         pg.display.flip()
 
-    def get_state(self):
-        if self.pipes[0].x > self.bird.x:
-            pipe = self.pipes[0]
-        else:
-            pipe = self.pipes[1]
-
-        state = [self.bird.y/DISPLAY_HEIGHT, self.bird.vel/10, (pipe.x - self.bird.x) / DISPLAY_WIDTH, (pipe.topHeight - self.bird.y)/ DISPLAY_HEIGHT, (pipe.bottomY - self.bird.y)/ DISPLAY_HEIGHT]
-
-        return np.array(state)
 
 # Input Layer -> Bird's Y coordinate, Bird's Velocity, Horizontal distance to the Pipe, vertical distance to the bottom of the top pipe, vertical distance to the top of the bottom pipe
 
@@ -128,7 +133,7 @@ class Bird:
         self.x = 100 # fixed
         self.y= DISPLAY_HEIGHT//2
         self.radius = 15
-        self.color = WHITE
+        self.color = (random.randint(0,255),random.randint(0,255),random.randint(0,255))
         self.start_time = (time.time())
         self.vel = 4
         self.jumpVel = -12
@@ -149,14 +154,6 @@ class Bird:
         else:
             t = round(time.time() - self.start_time,2)
             self.y += self.vel*t + 0.5*t**2
-
-class Population:
-
-    def __init__(self, no):
-        self.birds = []
-        for i in range(no):
-            self.birds[i] = Bird()
-
         
 
 class Collision:
@@ -205,24 +202,15 @@ def print_stuff(Font_Size, text, color, x, y):
 # Game loop
 def main():
     running = True
-    birds = []
-    for i in range(5):
-        birds.append(Bird())
-        game= gameEnv(birds[i])
-        start_time = time.time()
-        action = 0
-        while running:
-            for event in pg.event.get():
-                if event.type == pg.QUIT:
-                    running = False
+    game= Population(100)
+    while running:
+        for event in pg.event.get():
+            if event.type == pg.QUIT:
+                running = False
 
-            if time.time() - start_time > 0.1:
-                action = random.randint(0,1)
-                start_time = time.time()
-
-            DISPLAY.fill(BLACK)
-            game.step(action)
-            game.render()
+        DISPLAY.fill(BLACK)
+        game.work()
+        game.render()
 
     pg.quit()
     sys.exit()

@@ -3,6 +3,8 @@ import numpy as np
 import sys
 import random
 import time
+import tensforflow as tf
+from tensorflow import keras
 
 #initializing pygame
 pg.init()
@@ -25,8 +27,7 @@ WHITE = (255,255,255)
 collided = False
 
 class gameEnv:
-    def __init__(self, bird):
-        self.bird = bird
+    def __init__(self):
         self.reset()
         # pass
 
@@ -48,14 +49,12 @@ class gameEnv:
             pipe.draw()
             pipe.move()
 
-            # checking collision
             collission = Collision(self.bird, pipe)
             if collission.checkCollison():
                 self.game_over = True
                 collided = True
                 self.bird.color = RED
 
-            # Updating score
             if pipe.x < self.bird.x and pipe.passed == False:
                 pipe.passed = True
                 self.score += 1
@@ -98,6 +97,29 @@ class gameEnv:
 
         return np.array(state)
 
+class NeuralNetwork:
+
+    def __init__(self, a,b,c):
+        self.input_nodes = a
+        self.hidden_nodes = b
+        self.output_nodes = c
+        self.createModel()
+
+    def createModel(self):
+        self.model = keras.Sequential([
+            keras.layers.Dense(self.hidden_nodes, activation="sigmoid", input_shape=(self.input_nodes,)), # hidden layer
+            keras.layers.Dense(self.output_nodes, activation="softmax") # output layer
+        ])
+
+        # self.model.compile()
+
+    def predict(self, inputs):
+        xs = tf.tensor2d([inputs])
+        ys = this.model.predict(xs)
+        
+
+
+
 # Input Layer -> Bird's Y coordinate, Bird's Velocity, Horizontal distance to the Pipe, vertical distance to the bottom of the top pipe, vertical distance to the top of the bottom pipe
 
 class Pipe:
@@ -107,7 +129,7 @@ class Pipe:
 
         self.pipeGap = random.randint(70, 150)
         self.topHeight = random.randint(50, DISPLAY_HEIGHT - self.pipeGap)
-        self.bottomHeight = DISPLAY_HEIGHT - self.topHeight
+        self.bottomHeight = DISPLAY_HEIGHT - self.topHeight;
         self.bottomY = self.topHeight + self.pipeGap
 
         self.passed = False
@@ -120,8 +142,8 @@ class Pipe:
         pg.draw.rect(DISPLAY, WHITE, (self.x, self.bottomY, self.width, self.bottomHeight))
 
     def move(self):
-        # if not collided:
-        self.x -= 5
+        if not collided:
+            self.x -= 5;
 
 class Bird:
     def __init__(self):
@@ -137,8 +159,8 @@ class Bird:
         pg.draw.circle(DISPLAY, self.color, (self.x,self.y), self.radius)
 
     def update(self, action):
-        if not collided: # bird disappears after colliding
-            self.draw()
+        self.draw()
+        if not collided:
             self.move(action)
 
     def move(self,action):
@@ -148,21 +170,12 @@ class Bird:
             self.start_time = time.time()
         else:
             t = round(time.time() - self.start_time,2)
-            self.y += self.vel*t + 0.5*t**2
-
-class Population:
-
-    def __init__(self, no):
-        self.birds = []
-        for i in range(no):
-            self.birds[i] = Bird()
-
-        
+            self.y += self.vel*t + 0.5*t**2;
 
 class Collision:
     def __init__(self, Bird, Pipe):
-        self.bird = Bird
-        self.pipe = Pipe
+        self.bird = Bird;
+        self.pipe = Pipe;
 
     def nearest(self):
         # nearest y point
@@ -203,28 +216,53 @@ def print_stuff(Font_Size, text, color, x, y):
     DISPLAY.blit(text_render, (x, y))
 
 # Game loop
-def main():
+def mainy():
     running = True
-    birds = []
-    for i in range(5):
-        birds.append(Bird())
-        game= gameEnv(birds[i])
-        start_time = time.time()
-        action = 0
-        while running:
-            for event in pg.event.get():
-                if event.type == pg.QUIT:
-                    running = False
+    game = gameEnv()
+    while running:
+        for event in pg.event.get():
+            if event.type == pg.QUIT:
+                running = False
 
-            if time.time() - start_time > 0.1:
-                action = random.randint(0,1)
-                start_time = time.time()
+        keys = pg.key.get_pressed()
+        action = 1 if keys[pg.K_SPACE] else 0
 
-            DISPLAY.fill(BLACK)
-            game.step(action)
-            game.render()
+        DISPLAY.fill(BLACK)
+        game.step(action)
+        game.render()
 
     pg.quit()
     sys.exit()
+
+def choose_action(state, network):
+    output = network.forward_prop(state)
+    return 1 if output > 0.5 else 0 # 1 = flap
+
+def main():
+    network = NeuralNetwork(input_size=5, hidden_size=5, output_size=1)
+    game = gameEnv()
+    for episode in range(1000):
+        game.reset()
+        state = game.get_state()
+        total_reward = 0
+
+        while not game.game_over:
+            for event in pg.event.get():
+                if event.type == pg.QUIT:
+                    pg.quit()
+                    sys.exit()
+
+            action = choose_action(state, network)
+            reward, new_state, game_over = game.step(action)
+            total_reward += reward
+
+            expected_output = reward + 0.95*network.forward_prop(new_state)
+            # expected_output = reward + np.max(network.forward_prop(new_state))
+            network.train(state, expected_output)
+
+            state = new_state
+            game.render()
+
+        print(f"Episode:{episode +1}  Total Reward: {total_reward} ")
 
 main()
