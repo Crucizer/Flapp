@@ -4,6 +4,8 @@ import sys
 import random
 import time
 from NeuralNetwork import NeuralNetwork
+import operator
+import math
 
 #initializing pygame
 pg.init()
@@ -25,6 +27,60 @@ WHITE = (255,255,255)
 
 collided = False
 
+class Species:
+
+    def __init__(self, bird):
+        self.birds = []
+        self.avg_fitness = 0
+        self.threshold = 1.2
+        self.birds.append(bird)
+        self.benchmark_fitness = bird.fitness
+        self.benchmark_brain = bird.brain.clone()
+        self.champion = bird.clone()
+
+
+    def similarity(self, brain):
+        similarity = self.weight_difference(self.benchmark_brain, brain)
+        return self.threshold > similarity
+    
+    @staticmethod # doesn't take self as an argument
+    def weight_difference(brain_1, brain_2):
+        total_weight_difference = 0 
+        for i in range(0, len(brain_1.connections)):
+            for j in range(0, len(brain_2.connections)):
+                if i == j:
+                    total_weight_difference += abs(brain_1.connections[i].weight - brain_2.connections[j].weight)
+
+        return total_weight_difference
+    
+    def add_to_species(self, bird):
+        self.birds.append(bird)
+
+    def sort_players_by_fitness(self):
+        self.birds.sort(key=operator.attrgetter('fitness'), reverse = True)
+        
+        if self.birds[0].fitness > self.benchmark_fitness:
+            self.benchmark_fitness = self.birds[0].fitness
+            self.champion = self.birds[0].clone()
+
+    def calculate_avg_fitness(self):
+        total_fitness = 0 
+        for bird in self.birds:
+            total_fitness += bird.fitness()
+
+        if self.birds:
+            self.avg_fitness = int(total_fitness / len(self.birds))
+        else:
+            self.avg_fitness = 0 
+
+    def offspring(self):
+        # if len(self.birds) > 1:
+        baby = self.birds[random.randint(1, len(self.birds) - 1)].clone() # not choosing champion
+        baby.brain.mutate()
+        
+        return baby
+
+
 class Population:
     def __init__(self, size):
         self.birds = []
@@ -32,6 +88,8 @@ class Population:
         self.action = 0
         self.size = size
         self.pipes = [Pipe(DISPLAY_WIDTH)]
+        self.species = []
+        self.generation = 1
 
         for _ in range(self.size):
             self.birds.append(Bird())
@@ -47,8 +105,9 @@ class Population:
             # updating bird
             if not bird.dead:
                 if time.time() - self.start_time > 0.25:
-                    # self.action = random.randint(0,1)
                     self.action = bird.brain.feed_forward(bird.vision)
+                    print(self.action)
+                    self.action = 1 if self.action > 0.5 else 0
                     bird.update(self.action)
 
             # checking collision
@@ -69,6 +128,10 @@ class Population:
         if self.pipes[-1].x < DISPLAY_HEIGHT - 500:
             self.pipes.append(Pipe(DISPLAY_WIDTH))
 
+        if self.extinct():
+            self.pipes = [Pipe(DISPLAY_WIDTH)]
+            self.naturalSelection()
+
     def extinct(self):
         died = True
         for i in range(self.size):
@@ -77,6 +140,75 @@ class Population:
                 break
         
         return died
+    
+    def naturalSelection(self):
+        # make species
+        self.speciate()
+
+        # calculate fitness
+        self.calculate_fitness
+
+        # sort by fitness
+        self.sort_species_by_fitness()
+
+        # next generation
+        self.next_gen()
+
+    def speciate(self):
+        for s in self.species:
+            s.players = [] # resetting
+
+        for bird in self.birds:
+            add_to_species = False
+
+            for s in self.species:
+                if s.similarity(bird.brain):
+                    s.add_to_species(bird)
+                    add_to_species = True
+                    break
+
+            if not add_to_species:
+                self.species.append(Species(bird))
+
+    def calculate_fitness(self):
+        for bird in self.birds:
+            bird.calculate_fitness()
+
+        for s in self.species:
+            s.calculate_average_fitness()
+
+
+    def sort_species_by_fitness(self):
+        for s in self.species:
+            s.sort_players_by_fitness()
+
+        self.species.sort(key=operator.attrgetter('benchmark_fitness'), reverse = True)
+
+    def next_gen(self):
+        children = [] # childrens for the next generation
+
+        # Clone of champion is added to each species
+
+        for s in self.species:
+            children.append(s.champion.clone())
+
+        children_per_species = math.floor((self.size - len(self.species)) / len(self.species))
+        for s in self.species:
+            for i in range(0, children_per_species):
+                children.append(s.offspring())
+
+
+        while len(children) < self.size:
+            children.append(self.species[0].offspring()) # rest of the childrens are offspring from the best species
+
+        self.birds = []
+
+        for child in children:
+            self.birds.append(child)
+
+        self.generation += 1
+
+    
     
     def render(self):
         # print score maybe
@@ -120,9 +252,12 @@ class Bird:
         self.start_time = (time.time())
         self.vel = 4
         self.jumpVel = -12
+        
 
         self.score = 0 
         self.dead = False
+        self.lifespan = 0
+        self.fitness = 0
 
         # for AI stuff
         self.input_values = 3 
@@ -138,6 +273,9 @@ class Bird:
             self.draw()
             self.move(action)
 
+        # update lifespan
+        self.lifespan += 1
+
     def move(self,action):
         self.y += self.vel
         if action == 1: #jump
@@ -146,6 +284,17 @@ class Bird:
         else:
             t = round(time.time() - self.start_time,2)
             self.y += self.vel*t + 0.5*t**2
+
+    def calculate_fitness(self):
+        self.fitness = self.lifespan
+
+    def clone(self):
+        clone = Bird()
+        clone.fitness = self.fitness
+        clone.brain = self.brain.clone()
+        clone.brain.generate_net()
+
+        return clone 
         
 
 class Collision:
