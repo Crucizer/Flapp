@@ -46,11 +46,8 @@ class Species:
     @staticmethod # doesn't take self as an argument
     def weight_difference(brain_1, brain_2):
         total_weight_difference = 0 
-        for i in range(0, len(brain_1.connections)):
-            for j in range(0, len(brain_2.connections)):
-                if i == j:
-                    total_weight_difference += abs(brain_1.connections[i].weight - brain_2.connections[j].weight)
-
+        for i in range(len(brain_1.connections)):
+            total_weight_difference += abs(brain_1.connections[i].weight - brain_2.connections[i].weight)
         return total_weight_difference
     
     def add_to_species(self, bird):
@@ -66,7 +63,7 @@ class Species:
     def calculate_avg_fitness(self):
         total_fitness = 0 
         for bird in self.birds:
-            total_fitness += bird.fitness()
+            total_fitness += bird.fitness
 
         if self.birds:
             self.avg_fitness = int(total_fitness / len(self.birds))
@@ -74,10 +71,13 @@ class Species:
             self.avg_fitness = 0 
 
     def offspring(self):
-        # if len(self.birds) > 1:
-        baby = self.birds[random.randint(1, len(self.birds) - 1)].clone() # not choosing champion
+        if len(self.birds) > 1:
+            baby = self.birds[random.randint(0, len(self.birds) - 1)].clone()
+        else:
+            baby = self.birds[0].clone()
+            # this shouldn't really happen
+            print("NOT GOOD")
         baby.brain.mutate()
-        
         return baby
 
 
@@ -105,8 +105,7 @@ class Population:
             # updating bird
             if not bird.dead:
                 if time.time() - self.start_time > 0.25:
-                    self.action = bird.brain.feed_forward(bird.vision)
-                    print(self.action)
+                    self.action = bird.brain.feed_forward(bird.get_vision(self.pipes))
                     self.action = 1 if self.action > 0.5 else 0
                     bird.update(self.action)
 
@@ -146,7 +145,7 @@ class Population:
         self.speciate()
 
         # calculate fitness
-        self.calculate_fitness
+        self.calculate_fitness()
 
         # sort by fitness
         self.sort_species_by_fitness()
@@ -175,7 +174,7 @@ class Population:
             bird.calculate_fitness()
 
         for s in self.species:
-            s.calculate_average_fitness()
+            s.calculate_avg_fitness()
 
 
     def sort_species_by_fitness(self):
@@ -225,7 +224,7 @@ class Pipe:
         self.x = x
         self.width = 75
 
-        self.pipeGap = random.randint(70, 150)
+        self.pipeGap = random.randint(120, 200)
         self.topHeight = random.randint(50, DISPLAY_HEIGHT - self.pipeGap)
         self.bottomHeight = DISPLAY_HEIGHT - self.topHeight
         self.bottomY = self.topHeight + self.pipeGap
@@ -251,7 +250,11 @@ class Bird:
         self.color = (random.randint(0,255),random.randint(0,255),random.randint(0,255))
         self.start_time = (time.time())
         self.vel = 4
+        self.gravity = 0.5
         self.jumpVel = -12
+        self.jumping = False
+        self.jump_cooldown = 0 
+        self.jump_cooldown_time = 0.1
         
 
         self.score = 0 
@@ -274,19 +277,27 @@ class Bird:
             self.move(action)
 
         # update lifespan
-        self.lifespan += 1
+        self.lifespan += 0.1
 
     def move(self,action):
+        current_time = time.time()
+        
+        # Apply gravity
+        self.vel += self.gravity
         self.y += self.vel
-        if action == 1: #jump
-            self.y += self.jumpVel
-            self.start_time = time.time()
-        else:
-            t = round(time.time() - self.start_time,2)
-            self.y += self.vel*t + 0.5*t**2
+
+        # Check if cooldown has passed
+        if current_time - self.start_time > self.jump_cooldown_time:
+            self.jumping = False
+
+        # Jump if action is 1 and not already jumping
+        if action == 1 and not self.jumping:
+            self.vel = self.jumpVel
+            self.jumping = True
+            self.start_time = current_time
 
     def calculate_fitness(self):
-        self.fitness = self.lifespan
+        self.fitness = self.score*100 + self.lifespan
 
     def clone(self):
         clone = Bird()
@@ -295,7 +306,15 @@ class Bird:
         clone.brain.generate_net()
 
         return clone 
-        
+    
+    def get_vision(self, pipes):
+        nearest_pipe = min(pipes, key=lambda p: p.x - self.x if p.x > self.x else float('inf'))
+        return [
+            self.y / DISPLAY_HEIGHT,
+            (nearest_pipe.x - self.x) / DISPLAY_WIDTH,
+            (nearest_pipe.topHeight - self.y) / DISPLAY_HEIGHT
+        ]
+    
 
 class Collision:
     def __init__(self, Bird, Pipe):
