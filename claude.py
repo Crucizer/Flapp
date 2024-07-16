@@ -26,9 +26,7 @@ BLACK = (0,0,0)
 WHITE = (255,255,255)
 
 collided = False
-
 class Species:
-
     def __init__(self, bird):
         self.birds = []
         self.avg_fitness = 0
@@ -38,52 +36,43 @@ class Species:
         self.benchmark_brain = bird.brain.clone()
         self.champion = bird.clone()
 
-
     def similarity(self, brain):
         similarity = self.weight_difference(self.benchmark_brain, brain)
         return self.threshold > similarity
 
-    @staticmethod # doesn't take self as an argument
+    @staticmethod
     def weight_difference(brain_1, brain_2):
         total_weight_difference = 0
-        for i in range(len(brain_1.connections)):
-            total_weight_difference += abs(brain_1.connections[i].weight - brain_2.connections[i].weight)
+        for i in range(0, len(brain_1.connections)):
+            for j in range(0, len(brain_2.connections)):
+                if i == j:
+                    total_weight_difference += abs(brain_1.connections[i].weight -
+                                                   brain_2.connections[j].weight)
         return total_weight_difference
 
     def add_to_species(self, bird):
         self.birds.append(bird)
 
     def sort_players_by_fitness(self):
-        self.birds.sort(key=operator.attrgetter('fitness'), reverse = True)
-
+        self.birds.sort(key=operator.attrgetter('fitness'), reverse=True)
         if self.birds[0].fitness > self.benchmark_fitness:
             self.benchmark_fitness = self.birds[0].fitness
             self.champion = self.birds[0].clone()
 
     def calculate_avg_fitness(self):
         total_fitness = 0
-        for bird in self.birds:
-            total_fitness += bird.fitness
-
+        for p in self.birds:
+            total_fitness += p.fitness
         if self.birds:
             self.avg_fitness = int(total_fitness / len(self.birds))
         else:
             self.avg_fitness = 0
 
     def offspring(self):
-        baby = self.birds[random.randint(1, len(self.birds)) -1 ].clone()
+        baby = self.birds[random.randint(1, len(self.birds)) - 1].clone()
         baby.brain.mutate()
         return baby
 
-    def offspring_v2(self):
-        if len(self.birds) > 1:
-            baby = self.birds[random.randint(0, len(self.birds) - 1)].clone()
-        else:
-            baby = self.birds[0].clone()
-            # this shouldn't really happen
-            print("NOT GOOD")
-        baby.brain.mutate()
-        return baby
 
 class Population:
     def __init__(self, size):
@@ -144,6 +133,10 @@ class Population:
 
         return died
 
+    def get_top_birds(self, n):
+        all_birds = [bird for species in self.species for bird in species.birds]
+        return sorted(all_birds, key=lambda b: b.fitness, reverse=True)[:n]
+
     def naturalSelection(self):
         # make species
         self.speciate()
@@ -159,7 +152,7 @@ class Population:
 
     def speciate(self):
         for s in self.species:
-            s.birds = [] # resetting
+            s.players = [] # resetting
 
         for bird in self.birds:
             add_to_species = False
@@ -188,31 +181,39 @@ class Population:
         self.species.sort(key=operator.attrgetter('benchmark_fitness'), reverse = True)
 
     def next_gen(self):
-        children = [] # childrens for the next generation
+        children = []
+        elitism_count = 5  # Number of top birds to keep
 
-        # Clone of champion is added to each species
+        # Elitism
+        children.extend(self.get_top_birds(elitism_count))
+
+        total_fitness = sum(s.avg_fitness for s in self.species)
+
+        # Keep champions of each species
         for s in self.species:
-            children.append(s.champion.clone())
+            if s.champion not in children:  # Avoid duplicates
+                children.append(s.champion.clone())
 
-        children_per_species = math.floor((self.size - len(self.species)) / len(self.species))
-        for s in self.species:
-            for i in range(0, children_per_species):
-                children.append(s.offspring())
-
+        # Generate offspring
         while len(children) < self.size:
-            children.append(self.species[0].offspring()) # rest of the childrens are offspring from the best species
+            species = random.choices(self.species, weights=[s.avg_fitness/total_fitness for s in self.species])[0]
+            offspring = species.offspring()
+            children.append(offspring)
 
         self.birds = children
-
         self.generation += 1
 
+
+
     def render(self):
+        # print score maybe
+
         # frame rate
         clock.tick(FPS)
         pg.display.flip()
 
 
-# Input Layer ->  Horizontal distance to the Pipe, vertical distance to the bottom of the top pipe, vertical distance to the top of the bottom pipe
+# Input Layer -> Bird's Y coordinate, Bird's Velocity, Horizontal distance to the Pipe, vertical distance to the bottom of the top pipe, vertical distance to the top of the bottom pipe
 
 class Pipe:
     def __init__(self,x):
@@ -292,7 +293,10 @@ class Bird:
             self.start_time = current_time
 
     def calculate_fitness(self):
-        self.fitness = self.score*100 + self.lifespan
+        distance_factor = 1
+        score_factor = 10
+        lifespan_factor = 0.1
+        self.fitness = (self.x * distance_factor) + (self.score * score_factor) + (self.lifespan * lifespan_factor)
 
     def clone(self):
         clone = Bird()
